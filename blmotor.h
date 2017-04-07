@@ -19,3 +19,4 @@ void motorPowerOff();
 void bl_setup();
 void commutate();
 void motorControl();
+void initControlState();

@@ -41,22 +41,8 @@ uint16_t MotorPower = 120; // 0 to 255, 255==100% power
 
 uint8_t idl_motor_power = 80;
 
-//motor numbers
-#define L_Motor 0
-#define R_Motor 1
-
-//motor pole angle, 0->255 overflow to loop after >>8 shift
-uint16_t R_MotorStep = 0;
-uint16_t L_MotorStep = 0;
-
-float robot_speed;
-
-//rotation speed for turning
-int8_t rot_Speed = 0;
-
-// speed of motors, -127 to 127
-int16_t R_Speed = 0;
-int16_t L_Speed = 0;
+volatile uint8_t idx = 0;
+volatile uint16_t tick = 0;
 
 void setup_ocr_accel_values();
 
@@ -64,10 +50,12 @@ void initControlState() {
 	motorControlState.brake = 0;
 	motorControlState.desiredDirection = 1;
 	motorControlState.direction = 1;
-	motorControlState.enabled = 1;
+	motorControlState.enabled = 0;
 	motorControlState.power = 255;
 	motorControlState.speed = 0;
 	motorControlState.desiredSpeed = 0;
+	idx = 0;
+	OCR0A = 50;
 }
 
 void setup_ocr_accel_values() {
@@ -94,8 +82,7 @@ void bl_setup() {
 
 // switch off motor power
 void motorPowerOff() {
-	MoveMotors(L_Motor, 0, 0);
-	MoveMotors(R_Motor, 0, 0);
+	MoveMotors(1, 0, 0);
 }
 
 void MoveMotors(uint8_t motorNumber, uint8_t posStep, uint16_t power) {
@@ -171,23 +158,29 @@ void commutate() {
 	}
 }
 
+volatile uint8_t doCommutate = 0;
+
 void motorControl() {
-	if (motorControlState.desiredSpeed > motorControlState.speed) {
-		motorControlState.accel = 1;
-		motorControlState.decel = 0;
-	} else if (motorControlState.desiredSpeed < motorControlState.speed) {
-		motorControlState.accel = 0;
-		motorControlState.decel = 1;
+	if (motorControlState.enabled) {
+		if (!motorControlState.brake) {
+			doCommutate = 1;
+			if (motorControlState.desiredSpeed > motorControlState.speed) {
+				motorControlState.accel = 1;
+				motorControlState.decel = 0;
+			} else if (motorControlState.desiredSpeed < motorControlState.speed) {
+				motorControlState.accel = 0;
+				motorControlState.decel = 1;
+			} else {
+				motorControlState.accel = 0;
+				motorControlState.decel = 0;
+			}
+		}
 	} else {
-		motorControlState.accel = 0;
-		motorControlState.decel = 0;
+		motorPowerOff();
+		doCommutate = 0;
 	}
 
 }
-
-volatile uint8_t idx = 0;
-volatile uint16_t tick = 0;
-volatile uint8_t doCommutate = 1;
 
 // keep short
 ISR(TIMER0_COMPA_vect) {

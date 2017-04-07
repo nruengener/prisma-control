@@ -27,8 +27,10 @@ Kalman kalX;
 Kalman kalY;
 Kalman kalZ;
 
-volatile uint8_t updateFilters = 0;
+volatile uint8_t updatePosition = 0;
 volatile uint8_t debugPrint = 0;
+
+uint8_t warnFlag = 0;
 
 void initKalmanFilters();
 void updateKalmanFilters(int delay);
@@ -77,22 +79,55 @@ void setup() {
 
 }
 
+void resetMotor() {
+	initControlState();
+}
+
 int main() {
 	setup();
 
+	for (int i = 0; i < 255; i++) { // wait for some calibration
+		_delay_ms(10);
+		updateKalmanFilters(10);
+	}
+
 	motorControlState.desiredSpeed = 1200;
+	motorControlState.enabled = 1;
 
 	while (1) {
 		motorControl();
 
-		if (updateFilters) {
-			updateKalmanFilters(1);
-			updateFilters = 0;
+		// wait in case of warning
+		if (warnFlag) {
+			resetMotor();
+			_delay_ms(2000);
+			warnFlag = 0;
+		}
+
+		if (updatePosition) {
+			updateKalmanFilters(10);
+			updatePosition = 0;
+
+			// position dependent actions
+			if (abs(kalY.angle) < 20) {
+				// set flag
+				warnFlag = 1;
+				// broad side -> all off
+				motorControlState.enabled = 0;
+			}
+
+			if (abs(kalY.angle) > 30 && !warnFlag) {
+				motorControlState.enabled = 1;
+				motorControlState.desiredSpeed = 1200;
+			}
+
 		}
 
 		if (debugPrint) {
 			debugPrint = 0;
-			printf("kalZ.angle: %.2f, kalZ.rate: %.2f\n", kalZ.angle, kalZ.rate);
+//			printf("kalZ.angle: %.2f, kalZ.rate: %.2f\n", kalZ.angle, kalZ.rate);
+//			printf("kalY.angle: %.2f, kalY.rate: %.2f\n", kalY.angle, kalY.rate);
+			printf("kalX.angle: %.2f, kalY.angle: %.2f\n", kalX.angle, kalY.angle);
 		}
 
 		_delay_us(200);
@@ -139,6 +174,10 @@ void updateKalmanFilters(int delay) {
 	float xAngle = (FT_Atan2(ayg, sign * FT_Sqrt(0.001 * axg * axg + azg * azg)) - PI) * RAD_TO_DEG; // correct
 	float yAngle = (atan2f(-axg, FT_Sqrt(ayg * ayg + azg * azg))) * RAD_TO_DEG;
 	float zAngle = (FT_Atan2(axg, ayg) - PI) * RAD_TO_DEG;
+// offset
+	zAngle += Z_ANGLE_OFFSET;
+	if (zAngle < -180)
+		zAngle = 360 + zAngle;
 
 	if ((xAngle < -90 && kalX.angle > 90) || (xAngle > 90 && kalX.angle < -90)) {
 		kalX.angle = xAngle;
@@ -147,6 +186,7 @@ void updateKalmanFilters(int delay) {
 	}
 
 	// pitch is used to detect if prisma lies on broad side -> abs(kalY.angle) < 60 : motor off
+	// TODO: maybe use also roll (depends on orientation of sensor)
 	if ((yAngle < -90 && kalY.angle > 90) || (yAngle > 90 && kalY.angle < -90)) {
 		kalY.angle = yAngle;
 	} else {
@@ -159,6 +199,7 @@ void updateKalmanFilters(int delay) {
 	} else {
 		updateAngle(&kalZ, zAngle, gzds, dt);
 	}
+
 }
 
 volatile int freqCounter = 0;
@@ -179,7 +220,7 @@ ISR( TIMER1_OVF_vect ) {
 
 	// every 10 ms
 	if ((freqCounter & 0x01f) == 0 && msCounter % 10 == 0) {
-		updateFilters = 1;
+		updatePosition = 1;
 	}
 
 	// every 1000ms

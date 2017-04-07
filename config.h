@@ -28,5 +28,7 @@
 #define PI (3.14159f)
 #define MAX_ANGLE	((45.0f * PI) / 180)
 #define INIT_VARIANCE_ANGLE ((MAX_ANGLE * MAX_ANGLE) / 3.0f)
+// offsets
+#define Z_ANGLE_OFFSET 103
 
 #endif /* CONFIG_H_ */
