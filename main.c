@@ -9,8 +9,9 @@
 #include "mpu6050/mpu6050.h"
 #include "uart.h"
 #include "bgc_io.h"
-#include "blmotor.h"
+#include "blmotor/blmotor.h"
 #include "kalman/kalman.h"
+#include "prisma.h"
 #include "config.h"
 
 #define 	F_CPU   16000000UL
@@ -22,6 +23,7 @@
  */
 
 extern MotorControlState motorControlState;
+extern PrismaOrientation orientation;
 
 Kalman kalX;
 Kalman kalY;
@@ -73,6 +75,7 @@ void setup() {
 	mpu6050_init();
 	initKalmanFilters();
 	_delay_ms(10);
+	initOrientation();
 	bl_setup();
 	setup_timers();
 	sei();
@@ -108,15 +111,17 @@ int main() {
 			updateKalmanFilters(10);
 			updatePosition = 0;
 
+			detectOrientation(kalX.angle, kalY.angle, kalZ.angle);
+
 			// position dependent actions
-			if (abs(kalY.angle) < 20) {
+			if (orientation.broadSide && motorControlState.enabled == 1) {
 				// set flag
 				warnFlag = 1;
 				// broad side -> all off
 				motorControlState.enabled = 0;
 			}
 
-			if (abs(kalY.angle) > 30 && !warnFlag) {
+			if (!orientation.broadSide && !warnFlag) {
 				motorControlState.enabled = 1;
 				motorControlState.desiredSpeed = 1200;
 			}
@@ -127,7 +132,7 @@ int main() {
 			debugPrint = 0;
 //			printf("kalZ.angle: %.2f, kalZ.rate: %.2f\n", kalZ.angle, kalZ.rate);
 //			printf("kalY.angle: %.2f, kalY.rate: %.2f\n", kalY.angle, kalY.rate);
-			printf("kalX.angle: %.2f, kalY.angle: %.2f\n", kalX.angle, kalY.angle);
+			printf("kalX.angle: %.2f, kalY.angle: %.2f, kalZ.angle: %.2f\n", kalX.angle, kalY.angle, kalZ.angle);
 		}
 
 		_delay_us(200);

@@ -8,9 +8,9 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
-#include "bgc_io.h"
+#include "../bgc_io.h"
 #include "blmotor.h"
-#include "config.h"
+#include "../config.h"
 
 MotorControlState motorControlState;
 

@@ -12,6 +12,7 @@ RM := rm -rf
 -include mpu6050/subdir.mk
 -include kalman/subdir.mk
 -include i2chw/subdir.mk
+-include blmotor/subdir.mk
 -include subdir.mk
 -include objects.mk
 

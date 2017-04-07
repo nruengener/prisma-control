@@ -1,6 +1,5 @@
 #ifndef BLMOTOR_H
 #define BLMOTOR_H
-#endif
 
 typedef struct {
 	int8_t enabled;
@@ -20,3 +19,5 @@ void bl_setup();
 void commutate();
 void motorControl();
 void initControlState();
+
+#endif

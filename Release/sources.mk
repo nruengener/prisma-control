@@ -20,9 +20,10 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
-. \
+blmotor \
 i2chw \
 kalman \
+. \
 mpu6050 \
 util \
 
