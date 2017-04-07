@@ -4,23 +4,17 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../blmotor.c \
-../main.c \
-../uart.c 
+../kalman/kalman.c 
 
 OBJS += \
-./blmotor.o \
-./main.o \
-./uart.o 
+./kalman/kalman.o 
 
 C_DEPS += \
-./blmotor.d \
-./main.d \
-./uart.d 
+./kalman/kalman.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
-%.o: ../%.c
+kalman/%.o: ../kalman/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: AVR Compiler'
 	avr-gcc -Wall -Os -fpack-struct -fshort-enums -ffunction-sections -fdata-sections -std=gnu99 -funsigned-char -funsigned-bitfields -mmcu=atmega328p -DF_CPU=16000000UL -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -c -o "$@" "$<"

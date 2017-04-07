@@ -8,6 +8,7 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+// motor data
 #define MOTORUPDATE_FREQ 15625 // 31250, 15625, 10417
 #define POLENUMBER 7
 #define KV 80L
@@ -20,6 +21,12 @@
 #define MAX_SPEED_DELAY (1000000L / MAX_SPEED_COM_FREQ) // in microseconds
 #define MAX_SPEED_OCR_VAL ((MAX_SPEED_DELAY / TIMER_US) - 1)
 
-#define TICK_DIVIDER_MAX 200
+//#define TICK_DIVIDER_MAX 200
+
+// sensor data
+#define RAD_TO_DEG (57.29578f)
+#define PI (3.14159f)
+#define MAX_ANGLE	((45.0f * PI) / 180)
+#define INIT_VARIANCE_ANGLE ((MAX_ANGLE * MAX_ANGLE) / 3.0f)
 
 #endif /* CONFIG_H_ */

@@ -1,10 +1,6 @@
 /*
  * modified version of I2C master library
  * added a timeout variable for non blocking i2c
- *
- * 06.04.2016:
- * 	- Fixed timeout handling!
- * 	- Routines return int16_t; in case of failure -1
  */
 
 /*************************************************************************
@@ -15,45 +11,41 @@
 * Target:   any AVR device with hardware TWI 
 * Usage:    API compatible with I2C Software Library i2cmaster.h
 **************************************************************************/
-#include "i2cmaster_V2.h"
-
 #include <inttypes.h>
 #include <compat/twi.h>
-#include <stdio.h>
+
+#include "i2cmaster.h"
 
 
-
-/* Compiler-Vorgang abbrechen, wenn Prozessortakt nicht definiert F_CPU */
+/* define CPU frequency in Mhz here if not defined in Makefile */
 #ifndef F_CPU
-#error "F_CPU not defined!"
+#define F_CPU 16000000UL
 #endif
 
 /* I2C clock in Hz */
-#define SCL_CLOCK  400000L
-/* Baudrate-Register berechnen */
-#define TWBR_VAL ((F_CPU/SCL_CLOCK)-16)/2
-#if (TWBR_VAL <= 10)
-	#error "TWBR must be >10 for stable operation"
-#endif
+#define SCL_CLOCK  100000L
 
-/* I2C timeout Wert. uint32_t -> Größere Werte = längeres Warten*/
-#define I2C_TIMER_DELAY 0xFFFF
+/* I2C timer max delay */
+#define I2C_TIMER_DELAY 0xFF
 
 /*************************************************************************
  Initialization of the I2C bus interface. Need to be called only once
 *************************************************************************/
 void i2c_init(void)
 {
+  /* initialize TWI clock: 100 kHz clock, TWPS = 0 => prescaler = 1 */
+  
   TWSR = 0;                         /* no prescaler */
-  TWBR = TWBR_VAL;  /* must be > 10 for stable operation */
+  TWBR = ((F_CPU/SCL_CLOCK)-16)/2;  /* must be > 10 for stable operation */
+
 }/* i2c_init */
 
 
 /*************************************************************************	
   Issues a start condition and sends address and transfer direction.
-  return 0 = device accessible, -1= failed to access device
+  return 0 = device accessible, 1= failed to access device
 *************************************************************************/
-int16_t i2c_start(unsigned char address)
+unsigned char i2c_start(unsigned char address)
 {
 	uint32_t  i2c_timer = 0;
     uint8_t   twst;
@@ -63,12 +55,9 @@ int16_t i2c_start(unsigned char address)
 
 	// wait until transmission completed
 	i2c_timer = I2C_TIMER_DELAY;
-	while(!(TWCR & (1<<TWINT)) && (--i2c_timer) );
+	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
 	if(i2c_timer == 0)
-	{
-		//printf("ERROR: I2C Timeout (i2c_start:1)\n\n");
-		return -1;
-	}
+		return 1;
 
 	// check value of TWI Status Register. Mask prescaler bits.
 	twst = TW_STATUS & 0xF8;
@@ -80,20 +69,13 @@ int16_t i2c_start(unsigned char address)
 
 	// wail until transmission completed and ACK/NACK has been received
 	i2c_timer = I2C_TIMER_DELAY;
-	while(!(TWCR & (1<<TWINT)) && (--i2c_timer) );
+	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
 	if(i2c_timer == 0)
-	{
-		//printf("ERROR: I2C Timeout (i2c_start:2)\n\n");
-		return -1;
-	}
+		return 1;
 
 	// check value of TWI Status Register. Mask prescaler bits.
 	twst = TW_STATUS & 0xF8;
-	if ( (twst != TW_MT_SLA_ACK) && (twst != TW_MR_SLA_ACK) )
-	{
-		//printf("ERROR: I2C Error (i2c_start:3)\n\n");
-		return -1;
-	}
+	if ( (twst != TW_MT_SLA_ACK) && (twst != TW_MR_SLA_ACK) ) return 1;
 
 	return 0;
 
@@ -118,7 +100,7 @@ void i2c_start_wait(unsigned char address)
     
     	// wait until transmission completed
 	    i2c_timer = I2C_TIMER_DELAY;
-    	while(!(TWCR & (1<<TWINT)) && (--i2c_timer));
+    	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
 
     	// check value of TWI Status Register. Mask prescaler bits.
     	twst = TW_STATUS & 0xF8;
@@ -130,7 +112,7 @@ void i2c_start_wait(unsigned char address)
     
     	// wail until transmission completed
     	i2c_timer = I2C_TIMER_DELAY;
-    	while(!(TWCR & (1<<TWINT)) && (--i2c_timer) );
+    	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
     
     	// check value of TWI Status Register. Mask prescaler bits.
     	twst = TW_STATUS & 0xF8;
@@ -158,18 +140,19 @@ void i2c_start_wait(unsigned char address)
  Input:   address and transfer direction of I2C device
  
  Return:  0 device accessible
-          -1 failed to access device
+          1 failed to access device
 *************************************************************************/
-int16_t i2c_rep_start(unsigned char address)
+unsigned char i2c_rep_start(unsigned char address)
 {
     return i2c_start( address );
+
 }/* i2c_rep_start */
 
 
 /*************************************************************************
  Terminates the data transfer and releases the I2C bus
 *************************************************************************/
-int16_t i2c_stop(void)
+void i2c_stop(void)
 {
 	uint32_t  i2c_timer = 0;
 
@@ -178,13 +161,8 @@ int16_t i2c_stop(void)
 	
 	// wait until stop condition is executed and bus released
 	i2c_timer = I2C_TIMER_DELAY;
-	while((TWCR & (1<<TWSTO)) && (--i2c_timer));
-	if (i2c_timer==0)
-	{
-		//printf("ERROR: I2C Timeout (i2c_stop:1)\n\n");
-		return -1;
-	}
-	return 0;
+	while((TWCR & (1<<TWSTO)) && i2c_timer--);
+
 }/* i2c_stop */
 
 
@@ -193,9 +171,9 @@ int16_t i2c_stop(void)
   
   Input:    byte to be transfered
   Return:   0 write successful 
-            -1 write failed
+            1 write failed
 *************************************************************************/
-int16_t i2c_write( unsigned char data )
+unsigned char i2c_write( unsigned char data )
 {	
 	uint32_t  i2c_timer = 0;
     uint8_t   twst;
@@ -206,21 +184,13 @@ int16_t i2c_write( unsigned char data )
 
 	// wait until transmission completed
 	i2c_timer = I2C_TIMER_DELAY;
-	while(!(TWCR & (1<<TWINT)) && (--i2c_timer));
-	if (i2c_timer==0)
-	{
-		printf("ERROR: I2C Timeout (i2c_write:1)\n\n");
-		return -1;
-	}
+	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
+	if(i2c_timer == 0)
+		return 1;
 
 	// check value of TWI Status Register. Mask prescaler bits
 	twst = TW_STATUS & 0xF8;
-	if( twst != TW_MT_DATA_ACK)
-	{
-		printf("ERROR: I2C Timeout (i2c_write:2)\n\n");
-		return -1;
-	}
-
+	if( twst != TW_MT_DATA_ACK) return 1;
 	return 0;
 
 }/* i2c_write */
@@ -231,20 +201,17 @@ int16_t i2c_write( unsigned char data )
  
  Return:  byte read from I2C device
 *************************************************************************/
-int16_t i2c_readAck(void)
+unsigned char i2c_readAck(void)
 {
 	uint32_t  i2c_timer = 0;
 
 	TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWEA);
 	i2c_timer = I2C_TIMER_DELAY;
-	while(!(TWCR & (1<<TWINT)) && (--i2c_timer));
-	if (i2c_timer==0)
-	{
-		printf("ERROR: I2C Timeout (i2c_readAck:1)\n\n");
-		return -1;
-	}
+	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
+	if(i2c_timer == 0)
+		return 0;
 
-    return (int16_t)TWDR;
+    return TWDR;
 
 }/* i2c_readAck */
 
@@ -254,19 +221,16 @@ int16_t i2c_readAck(void)
  
  Return:  byte read from I2C device
 *************************************************************************/
-int16_t i2c_readNak(void)
+unsigned char i2c_readNak(void)
 {
 	uint32_t  i2c_timer = 0;
 
 	TWCR = (1<<TWINT) | (1<<TWEN);
 	i2c_timer = I2C_TIMER_DELAY;
-	while(!(TWCR & (1<<TWINT)) && (--i2c_timer));
-	if (i2c_timer==0)
-	{
-		printf("ERROR: I2C Timeout (i2c_readNak:1)\n\n");
-		return -1;
-	}
+	while(!(TWCR & (1<<TWINT)) && i2c_timer--);
+	if(i2c_timer == 0)
+		return 0;
 	
-    return (int16_t)TWDR;
+    return TWDR;
 
 }/* i2c_readNak */
