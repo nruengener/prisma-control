@@ -94,10 +94,12 @@ int main() {
 		updateKalmanFilters(10);
 	}
 
-	motorControlState.desiredSpeed = 1200;
+	motorControlState.desiredSpeed = 1400;
 	motorControlState.enabled = 1;
 
+	int tick = 0;
 	while (1) {
+
 		motorControl();
 
 		// wait in case of warning
@@ -108,6 +110,19 @@ int main() {
 		}
 
 		if (updatePosition) {
+
+			if (motorControlState.speed > 1100) {
+				tick++;
+				if (tick == 40) {
+					motorControlState.power = 210;
+motorControlState.desiredSpeed = 800;
+				} else if (tick == 80) {
+					motorControlState.power = 255;
+					motorControlState.desiredSpeed = 1400;
+					tick = 0;
+				}
+			}
+
 			updateKalmanFilters(10);
 			updatePosition = 0;
 
@@ -132,7 +147,9 @@ int main() {
 			debugPrint = 0;
 //			printf("kalZ.angle: %.2f, kalZ.rate: %.2f\n", kalZ.angle, kalZ.rate);
 //			printf("kalY.angle: %.2f, kalY.rate: %.2f\n", kalY.angle, kalY.rate);
-			printf("kalX.angle: %.2f, kalY.angle: %.2f, kalZ.angle: %.2f\n", kalX.angle, kalY.angle, kalZ.angle);
+//			printf("kalX.angle: %.2f, kalY.angle: %.2f, kalZ.angle: %.2f\n", kalX.angle, kalY.angle, kalZ.angle);
+			printf("speed: %.2f \n", motorControlState.speed);
+//			printf("speedFactor: %.2f, speedFactor / OCR0A: %.2f\n", speedFactor, speedFactor / OCR0A);
 		}
 
 		_delay_us(200);

@@ -8,6 +8,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <stdio.h>
+#include <math.h>
 #include "../bgc_io.h"
 #include "blmotor.h"
 #include "../config.h"
@@ -30,12 +32,14 @@ int8_t pwmSinMotor[] = { 0, 5, 10, 16, 21, 27, 32, 37, 43, 48, 53, 59, 64, 69, 7
 		-115, -114, -112, -111, -109, -104, -99, -94, -89, -84, -79, -74, -69, -64, -59, -53, -48, -43, -37, -32, -27,
 		-21, -16, -10, -5, 0 };
 
-const float ocr_factor[] PROGMEM = { 5.5f, 5.1f, 4.7f, 4.35f, 4.05f, 3.75f, 3.5f, 3.25f, 3.05f, 2.85f, 2.65f, 2.5f,
+const float ocrFactor[] PROGMEM = { 5.5f, 5.1f, 4.7f, 4.35f, 4.05f, 3.75f, 3.5f, 3.25f, 3.05f, 2.85f, 2.65f, 2.5f,
 		2.35f, 2.25f, 2.1f, 2.0f, 1.9f, 1.85f, 1.75f, 1.7f, 1.6f, 1.55f, 1.5f, 1.45f, 1.4f, 1.35f, 1.35f, 1.3f, 1.3f,
 		1.25f, 1.25f, 1.2f, 1.2f, 1.15f, 1.15f, 1.15f, 1.1f, 1.1f, 1.1f, 1.1f, 1.1f, 1.05f, 1.05f, 1.05f, 1.05f, 1.05f,
 		1.05f, 1.05f, 1.0f, 1.0f };
 
 uint8_t ocr[50];
+
+float speedLookup[50];
 
 uint16_t MotorPower = 120; // 0 to 255, 255==100% power
 
@@ -43,6 +47,10 @@ uint8_t idl_motor_power = 80;
 
 volatile uint8_t idx = 0;
 volatile uint16_t tick = 0;
+
+uint8_t doCommutate = 0;
+
+float speedFactor = (250000.0f / (POLENUMBER * 255)) * 60;
 
 void setup_ocr_accel_values();
 
@@ -60,7 +68,13 @@ void initControlState() {
 
 void setup_ocr_accel_values() {
 	for (int i = 0; i < 50; i++) {
-		ocr[i] = pgm_read_float(&ocr_factor[i]) * MAX_SPEED_OCR_VAL;
+		ocr[i] = pgm_read_float(&ocrFactor[i]) * MAX_SPEED_OCR_VAL;
+	}
+	for (int i = 0; i < 50; i++) {
+		speedLookup[i] = speedFactor / (ocr[i] + 1);
+//		printf("speedLookup[i]: %.2f, speedFactor / (ocr[i] + 1): %.2f\n", speedLookup[i], (speedFactor / (ocr[i] + 1)));
+//		printf("speedFactor: %.2f, (ocr[i] + 1): %i\n", speedFactor, (ocr[i] + 1));
+//		printf("i: %i, speedFactor: %.2f, (ocr[i] + 1): %i, div: %.2f \n", i, speedFactor, (ocr[i] + 1), speedFactor / (ocr[i] + 1));
 	}
 }
 
@@ -158,13 +172,18 @@ void commutate() {
 	}
 }
 
-volatile uint8_t doCommutate = 0;
-
 void motorControl() {
 	if (motorControlState.enabled) {
 		if (!motorControlState.brake) {
+
+			// change of direction
+			if (motorControlState.desiredDirection != motorControlState.direction) {
+
+			}
+
 			doCommutate = 1;
-			if (motorControlState.desiredSpeed > motorControlState.speed) {
+			// > 0 ) {
+			if (motorControlState.desiredSpeed > motorControlState.speed ) { //motorControlState.speed) { // TODO: leads to accel decel loop
 				motorControlState.accel = 1;
 				motorControlState.decel = 0;
 			} else if (motorControlState.desiredSpeed < motorControlState.speed) {
@@ -174,10 +193,18 @@ void motorControl() {
 				motorControlState.accel = 0;
 				motorControlState.decel = 0;
 			}
+
+			// calculate speed
+			motorControlState.speed = speedFactor / (OCR0A - 1); //speedLookup[idx];
+		} else { // brake
+			motorControlState.speed = 0;
+			idx = 0;
 		}
-	} else {
+	} else { // disabled
 		motorPowerOff();
 		doCommutate = 0;
+		motorControlState.speed = 0;
+		idx = 0;
 	}
 
 }
@@ -196,7 +223,7 @@ ISR(TIMER0_COMPA_vect) {
 			tick = 0;
 			OCR0A = ocr[idx];
 		}
-	} else {
+	} else { // TODO: what if braking?
 		motorPowerOff();
 	}
 }

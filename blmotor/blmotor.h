@@ -8,10 +8,12 @@ typedef struct {
 	int8_t decel;
 	int8_t direction;
 	int8_t desiredDirection;
-	int16_t speed;
-	int16_t desiredSpeed;
+	float speed;
+	float desiredSpeed;
 	uint16_t power;
 } MotorControlState;
+
+extern float speedFactor;
 
 void MoveMotors(uint8_t motorNumber, uint8_t posStep, uint16_t power);
 void motorPowerOff();
