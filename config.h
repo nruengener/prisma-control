@@ -14,7 +14,7 @@
 #define KV 80L
 #define VOLTAGE 14
 #define MAX_RPM_UNLOADED (KV*VOLTAGE) // unloaded! TODO: reduce
-#define MAX_RPM (MAX_RPM_UNLOADED*1.05f)
+#define MAX_RPM (MAX_RPM_UNLOADED*0.5f)  //1.04f)
 #define TIMER_US 4 // with OCR = 1
 #define COM_STEPS_PER_TURN (POLENUMBER * 255) // 255 steps per commutation phase
 #define MAX_SPEED_COM_FREQ ((MAX_RPM*COM_STEPS_PER_TURN) / 60)

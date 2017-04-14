@@ -3,6 +3,7 @@
 
 typedef struct {
 	int8_t enabled;
+	int8_t wait;
 	int8_t brake;
 	int8_t accel;
 	int8_t decel;
@@ -21,5 +22,6 @@ void bl_setup();
 void commutate();
 void motorControl();
 void initControlState();
+void printMotorState();
 
 #endif

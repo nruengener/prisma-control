@@ -14,6 +14,8 @@
 #include "blmotor.h"
 #include "../config.h"
 
+#define DEBUG
+
 MotorControlState motorControlState;
 
 // Space Vector PWM lookup table
@@ -48,6 +50,8 @@ uint8_t idl_motor_power = 80;
 volatile uint8_t idx = 0;
 volatile uint16_t tick = 0;
 
+// current commutation step [0 - 255]
+volatile uint8_t step = 0;
 uint8_t doCommutate = 0;
 
 float speedFactor = (250000.0f / (POLENUMBER * 255)) * 60;
@@ -62,6 +66,7 @@ void initControlState() {
 	motorControlState.power = 255;
 	motorControlState.speed = 0;
 	motorControlState.desiredSpeed = 0;
+	motorControlState.wait = 0;
 	idx = 0;
 	OCR0A = 50;
 }
@@ -69,6 +74,9 @@ void initControlState() {
 void setup_ocr_accel_values() {
 	for (int i = 0; i < 50; i++) {
 		ocr[i] = pgm_read_float(&ocrFactor[i]) * MAX_SPEED_OCR_VAL;
+		#if defined   DEBUG
+			printf("ocr[%i]: %i\n", i, ocr[i]);
+		#endif
 	}
 	for (int i = 0; i < 50; i++) {
 		speedLookup[i] = speedFactor / (ocr[i] + 1);
@@ -78,14 +86,11 @@ void setup_ocr_accel_values() {
 	}
 }
 
-//--------------------------------------------------------------------
-//Motor control stuff-------------------------------------------------
-//--------------------------------------------------------------------
+// setup motor control
 void bl_setup() {
 	setup_ocr_accel_values();
 
-	// Set Motor Ports to output
-//	MOT0_DDR |= (1 << MOT0A_BIT) | (1 << MOT0B_BIT) | (1 << MOT0C_BIT);
+	// Set Motor Port to output
 	MOT1_DDR |= (1 << MOT1A_BIT) | (1 << MOT1B_BIT) | (1 << MOT1C_BIT);
 
 	initControlState();
@@ -96,7 +101,7 @@ void bl_setup() {
 
 // switch off motor power
 void motorPowerOff() {
-	MoveMotors(1, 0, 0);
+	MoveMotors(1, ++step, 0);
 }
 
 void MoveMotors(uint8_t motorNumber, uint8_t posStep, uint16_t power) {
@@ -136,7 +141,6 @@ void MoveMotors(uint8_t motorNumber, uint8_t posStep, uint16_t power) {
 	}
 }
 
-volatile uint8_t step = 0;
 void commutate() {
 	step++;
 	uint16_t pwm_a;
@@ -173,32 +177,45 @@ void commutate() {
 }
 
 void motorControl() {
+//	doCommutate = 0;
 	if (motorControlState.enabled) {
-		if (!motorControlState.brake) {
+		if (motorControlState.wait) {
+			// how long?
+			motorControlState.wait--;
+			doCommutate = 0;
+		} else {
+			if (!motorControlState.brake) {
+				// change of direction
+				if (motorControlState.desiredDirection != motorControlState.direction) {
+					// do not commutate -> i.e. brake?
+					motorControlState.speed = 0;
+					idx = 0;
+					motorControlState.direction = motorControlState.desiredDirection;
+					// TODO: use wait flag?
+					motorControlState.wait = 40;
+					motorPowerOff();
+					doCommutate = 0;
+				} else {
+					doCommutate = 1;
+					if (motorControlState.desiredSpeed > motorControlState.speed) { // > 0 or motorControlState.speed) { // TODO: leads to accel decel loop
+						motorControlState.accel = 1;
+						motorControlState.decel = 0;
+					} else if (motorControlState.desiredSpeed < motorControlState.speed) {
+						motorControlState.accel = 0;
+						motorControlState.decel = 1;
+					} else {
+						motorControlState.accel = 0;
+						motorControlState.decel = 0;
+					}
 
-			// change of direction
-			if (motorControlState.desiredDirection != motorControlState.direction) {
-
+					// calculate speed
+					motorControlState.speed = speedFactor / (OCR0A + 1); //speedLookup[idx];
+				}
+			} else { // brake
+				motorControlState.speed = 0;
+				idx = 0;
+				doCommutate = 0;
 			}
-
-			doCommutate = 1;
-			// > 0 ) {
-			if (motorControlState.desiredSpeed > motorControlState.speed ) { //motorControlState.speed) { // TODO: leads to accel decel loop
-				motorControlState.accel = 1;
-				motorControlState.decel = 0;
-			} else if (motorControlState.desiredSpeed < motorControlState.speed) {
-				motorControlState.accel = 0;
-				motorControlState.decel = 1;
-			} else {
-				motorControlState.accel = 0;
-				motorControlState.decel = 0;
-			}
-
-			// calculate speed
-			motorControlState.speed = speedFactor / (OCR0A - 1); //speedLookup[idx];
-		} else { // brake
-			motorControlState.speed = 0;
-			idx = 0;
 		}
 	} else { // disabled
 		motorPowerOff();
@@ -223,7 +240,19 @@ ISR(TIMER0_COMPA_vect) {
 			tick = 0;
 			OCR0A = ocr[idx];
 		}
-	} else { // TODO: what if braking?
+	} else if (motorControlState.brake) {
+		// do nothing?
+	} else {
 		motorPowerOff();
 	}
+//	OCR0A = ocr[idx];
+}
+
+void printMotorState() {
+	printf("motor enabled: %i, wait: %i\n", motorControlState.enabled, motorControlState.wait);
+	printf("power: %i, accel: %i, decel: %i\n", motorControlState.power, motorControlState.accel,
+			motorControlState.decel);
+	printf("speed: %.2f, desired speed: %.2f\n", motorControlState.speed, motorControlState.desiredSpeed);
+	printf("direction: %i, desired direction: %i\n", motorControlState.direction, motorControlState.desiredDirection);
+
 }

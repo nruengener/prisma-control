@@ -42,9 +42,22 @@ void setup_timers() {
 	// Timer 0 -> control
 	TCNT0 = 0;
 	TCCR0A |= (1 << WGM21); // Configure timer 2 for CTC mode
-	TCCR0B |= (1 << CS01) | (1 << CS00); // prescaler 64
+	TCCR0B |= (1 << CS01) | (1 << CS00); // prescaler 64 -> 250000Hz count frequency (4us)
 	TIMSK0 |= (1 << OCIE2A); // Enable CTC interrupt
 	OCR0A = 50 - 1; // 5000Hz, 200us initial frequeny
+
+	// wie bestimmtes Moment erzeugen?
+	// TODO: delta t = (OCR0Aneu + 1) * 4us
+	// F:= (250000.0f / (POLENUMBER * 255)
+	// speed_neu = ( F / (OCR0Aneu + 1) ) * (1/2 PI) (rad/s)
+	// speed_alt = ( F / (OCR0Aalt + 1) ) * (1/2 PI)
+
+	// delta w = speed_neu - speed_alt
+	// alpha = delta w / delta t
+
+	// Mneeded = I * alpha(needed)
+
+
 
 	// Timer 1 and 2 -> PWM for motor
 	// timer setup for 31.250KHZ phase correct PWM
@@ -94,8 +107,11 @@ int main() {
 		updateKalmanFilters(10);
 	}
 
-	motorControlState.desiredSpeed = 1400;
+	motorControlState.desiredSpeed = 1600;
 	motorControlState.enabled = 1;
+
+//	motorControlState.desiredDirection = 0;
+//	motorControlState.direction = 0;
 
 	int tick = 0;
 	while (1) {
@@ -113,12 +129,14 @@ int main() {
 
 			if (motorControlState.speed > 1100) {
 				tick++;
-				if (tick == 40) {
-					motorControlState.power = 210;
-motorControlState.desiredSpeed = 800;
-				} else if (tick == 80) {
-					motorControlState.power = 255;
-					motorControlState.desiredSpeed = 1400;
+				if (tick == 400) {
+//					motorControlState.power = 210;
+//					motorControlState.desiredSpeed = 800;
+					motorControlState.desiredDirection = 0;
+				} else if (tick == 800) {
+//					motorControlState.power = 255;
+//					motorControlState.desiredSpeed = 1400;
+					motorControlState.desiredDirection = 1;
 					tick = 0;
 				}
 			}
@@ -136,9 +154,9 @@ motorControlState.desiredSpeed = 800;
 				motorControlState.enabled = 0;
 			}
 
-			if (!orientation.broadSide && !warnFlag) {
+			if (!orientation.broadSide && !warnFlag) { // TODO: use resetted flag or something?
 				motorControlState.enabled = 1;
-				motorControlState.desiredSpeed = 1200;
+				motorControlState.desiredSpeed = 1600;
 			}
 
 		}
@@ -148,8 +166,10 @@ motorControlState.desiredSpeed = 800;
 //			printf("kalZ.angle: %.2f, kalZ.rate: %.2f\n", kalZ.angle, kalZ.rate);
 //			printf("kalY.angle: %.2f, kalY.rate: %.2f\n", kalY.angle, kalY.rate);
 //			printf("kalX.angle: %.2f, kalY.angle: %.2f, kalZ.angle: %.2f\n", kalX.angle, kalY.angle, kalZ.angle);
-			printf("speed: %.2f \n", motorControlState.speed);
+//			printf("speed: %.2f \n", motorControlState.speed);
 //			printf("speedFactor: %.2f, speedFactor / OCR0A: %.2f\n", speedFactor, speedFactor / OCR0A);
+
+			printMotorState();
 		}
 
 		_delay_us(200);
