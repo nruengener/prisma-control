@@ -2,7 +2,7 @@
  * kalman.c
  *
  *  Created on: 01.04.2017
- *      Author: otto
+ *      Author: Nando Rüngener
  */
 #include <stdio.h>
 
