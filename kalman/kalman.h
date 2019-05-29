@@ -2,6 +2,7 @@
  * kalman.h
  *
  *  Adapted from C++ code at https://github.com/TKJElectronics/KalmanFilter.
+ *  Author: Nando Rüngener
  */
 
 #ifndef KALMAN_KALMAN_H_
